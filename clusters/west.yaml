@@ -1,0 +1,10 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: west
+networking:
+  podSubnet: 10.20.0.0/16
+  serviceSubnet: 10.21.0.0/16
+  disableDefaultCNI: true          # Calico, so NetworkPolicies are actually enforced
+nodes:
+  - role: control-plane
+  - role: worker

@@ -1,0 +1,18 @@
+# App-of-apps: the only thing applied by hand. Everything else is reconciled from git.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/YOUR_ORG/k8s-multicluster-gitops-mesh.git
+    targetRevision: main
+    path: gitops/appsets
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}

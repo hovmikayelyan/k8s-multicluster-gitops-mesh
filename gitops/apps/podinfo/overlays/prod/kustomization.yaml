@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: [../../base]
+# Promotion = a PR that edits this file (image tags / canary weight). staging auto-syncs; prod needs a manual sync.
+patches:
+  - target: {kind: Deployment, name: podinfo-v1}
+    patch: |-
+      - {op: replace, path: /spec/replicas, value: 3}
+      - {op: replace, path: /spec/template/spec/containers/0/image, value: ghcr.io/stefanprodan/podinfo:6.6.0}
+  - target: {kind: Deployment, name: podinfo-v2}
+    patch: |-
+      - {op: replace, path: /spec/replicas, value: 3}
+      - {op: replace, path: /spec/template/spec/containers/0/image, value: ghcr.io/stefanprodan/podinfo:6.7.1}
+  - target: {kind: VirtualService, name: podinfo}
+    patch: |-
+      - {op: replace, path: /spec/http/0/route/0/weight, value: 90}
+      - {op: replace, path: /spec/http/0/route/1/weight, value: 10}

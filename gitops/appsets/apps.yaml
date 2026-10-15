@@ -1,0 +1,35 @@
+# Workloads. Promotion pipeline: the cluster's env label selects overlays/<env>.
+#  staging (east): auto-sync    -> merge to main deploys immediately
+#  prod    (west): manual sync  -> promote by PR changing overlays/prod, then an approver clicks Sync
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: apps
+  namespace: argocd
+spec:
+  goTemplate: true
+  generators:
+    - clusters:
+        selector:
+          matchExpressions: [{key: env, operator: In, values: [staging, prod]}]
+  template:
+    metadata:
+      name: "podinfo-{{.name}}"
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/YOUR_ORG/k8s-multicluster-gitops-mesh.git
+        targetRevision: main
+        path: "gitops/apps/podinfo/overlays/{{.metadata.labels.env}}"
+      destination:
+        server: "{{.server}}"
+        namespace: podinfo
+      syncPolicy:
+        syncOptions: [ServerSideApply=true]
+        retry: {limit: 5, backoff: {duration: 15s, factor: 2, maxDuration: 3m}}
+  templatePatch: |
+    {{- if eq (index .metadata.labels "env") "staging" }}
+    spec:
+      syncPolicy:
+        automated: {prune: true, selfHeal: true}
+    {{- end }}

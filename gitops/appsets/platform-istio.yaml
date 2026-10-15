@@ -1,0 +1,47 @@
+# Istio (service mesh) on EVERY registered cluster: clusters x charts.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: platform-istio
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - matrix:
+        generators:
+          - clusters:
+              selector:
+                matchExpressions: [{key: env, operator: In, values: [staging, prod]}]
+          - list:
+              elements:
+                - {chart: base,    release: istio-base, ns: istio-system}
+                - {chart: cni,     release: istio-cni,  ns: kube-system}   # lets app namespaces stay PSS "restricted" (no NET_ADMIN init container)
+                - {chart: istiod,  release: istiod,     ns: istio-system}
+                - {chart: gateway, release: istio-ingress, ns: istio-ingress}
+  template:
+    metadata:
+      name: "istio-{{.chart}}-{{.name}}"
+    spec:
+      project: default
+      source:
+        repoURL: https://istio-release.storage.googleapis.com/charts
+        chart: "{{.chart}}"
+        targetRevision: 1.23.2
+        helm:
+          releaseName: "{{.release}}"
+          valuesObject:
+            meshConfig:
+              accessLogFile: /dev/stdout
+              enableTracing: true
+            global:
+              meshID: lab-mesh
+              multiCluster: {clusterName: "{{.name}}"}
+              network: "{{.name}}-net"
+      destination:
+        server: "{{.server}}"
+        namespace: "{{.ns}}"
+      syncPolicy:
+        automated: {prune: true, selfHeal: true}
+        syncOptions: [CreateNamespace=true, ServerSideApply=true, SkipDryRunOnMissingResource=true]
+        retry: {limit: 10, backoff: {duration: 15s, factor: 2, maxDuration: 5m}}   # CRDs/charts come up in order eventually

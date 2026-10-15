@@ -1,0 +1,61 @@
+# --- zero-trust: mTLS everywhere in the namespace + explicit allow ---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata: {name: default}
+spec:
+  mtls: {mode: STRICT}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata: {name: deny-all}
+spec: {}      # empty spec == deny all
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata: {name: allow-gateway-and-self}
+spec:
+  selector: {matchLabels: {app: podinfo}}
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/istio-ingress/sa/istio-ingress
+              - cluster.local/ns/podinfo/sa/podinfo
+---
+# --- traffic management: canary split between v1 and v2 ---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata: {name: podinfo}
+spec:
+  host: podinfo
+  trafficPolicy:
+    tls: {mode: ISTIO_MUTUAL}
+    outlierDetection: {consecutive5xxErrors: 5, interval: 10s, baseEjectionTime: 30s}
+  subsets:
+    - {name: v1, labels: {version: v1}}
+    - {name: v2, labels: {version: v2}}
+---
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata: {name: podinfo}
+spec:
+  selector: {istio: ingress}
+  servers:
+    - port: {number: 80, name: http, protocol: HTTP}
+      hosts: ["*"]
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata: {name: podinfo}
+spec:
+  hosts: ["*"]
+  gateways: [podinfo]
+  http:
+    - route:
+        - destination: {host: podinfo, subset: v1}
+          weight: 90
+        - destination: {host: podinfo, subset: v2}
+          weight: 10
+      retries: {attempts: 3, perTryTimeout: 2s, retryOn: "5xx,connect-failure"}
+      timeout: 10s

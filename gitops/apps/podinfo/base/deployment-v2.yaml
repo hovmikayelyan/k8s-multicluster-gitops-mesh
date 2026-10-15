@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: podinfo-v2
+  labels: {app: podinfo, version: v2}
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: podinfo, version: v2}
+  template:
+    metadata:
+      labels: {app: podinfo, version: v2}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9898"
+    spec:
+      serviceAccountName: podinfo
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: podinfo
+          image: ghcr.io/stefanprodan/podinfo:6.7.1
+          ports: [{name: http, containerPort: 9898}]
+          env:
+            - {name: PODINFO_UI_MESSAGE, value: "version v2"}
+          readinessProbe: {httpGet: {path: /readyz, port: http}, periodSeconds: 5}
+          livenessProbe: {httpGet: {path: /healthz, port: http}, periodSeconds: 10}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}

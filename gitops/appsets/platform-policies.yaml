@@ -1,0 +1,26 @@
+# Namespaces with Pod Security Standards labels + default-deny NetworkPolicies, on every cluster.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: platform-policies
+  namespace: argocd
+spec:
+  goTemplate: true
+  generators:
+    - clusters:
+        selector:
+          matchExpressions: [{key: env, operator: In, values: [staging, prod]}]
+  template:
+    metadata:
+      name: "policies-{{.name}}"
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/YOUR_ORG/k8s-multicluster-gitops-mesh.git
+        targetRevision: main
+        path: gitops/platform/policies
+      destination:
+        server: "{{.server}}"
+      syncPolicy:
+        automated: {prune: true, selfHeal: true}
+        syncOptions: [CreateNamespace=false]

@@ -1,0 +1,47 @@
+# 1) default deny everything in the namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny-all, namespace: podinfo}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+# 2) DNS
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-dns-egress, namespace: podinfo}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+      ports: [{port: 53, protocol: UDP}, {port: 53, protocol: TCP}]
+---
+# 3) sidecars -> istiod (xDS/CA)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-istiod-egress, namespace: podinfo}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: istio-system}}
+      ports: [{port: 15012, protocol: TCP}, {port: 15014, protocol: TCP}]
+---
+# 4) the mesh gateway may reach the app; pods in the namespace may talk to each other (mTLS enforced by Istio)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress-gateway-and-same-namespace, namespace: podinfo}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: istio-ingress}}
+        - podSelector: {}
+      ports: [{port: 9898, protocol: TCP}, {port: 15006, protocol: TCP}, {port: 15090, protocol: TCP}]
+  egress:
+    - to:
+        - podSelector: {}

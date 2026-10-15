@@ -1,0 +1,26 @@
+# The gateway: accepts external traffic, may only egress to podinfo + istiod + DNS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny-all, namespace: istio-ingress}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: gateway-traffic, namespace: istio-ingress}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - ports: [{port: 8080, protocol: TCP}, {port: 8443, protocol: TCP}, {port: 15021, protocol: TCP}]
+  egress:
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+      ports: [{port: 53, protocol: UDP}, {port: 53, protocol: TCP}]
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: istio-system}}
+      ports: [{port: 15012, protocol: TCP}]
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: podinfo}}
+      ports: [{port: 9898, protocol: TCP}, {port: 15006, protocol: TCP}]
